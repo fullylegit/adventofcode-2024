@@ -3,12 +3,21 @@ use rayon::prelude::*;
 pub fn main() {
     const INPUT: &str = include_str!("../inputs/2");
     println!("day 2 part 1: {}", num_safe_reports(INPUT));
+    println!("day 2 part 2: {}", num_safe_reports_dampened(INPUT));
 }
 
 fn num_safe_reports(input: &str) -> usize {
     parse_input(input)
         .into_iter()
         .filter(|report| is_safe(report))
+        .count()
+}
+
+fn num_safe_reports_dampened(input: &str) -> usize {
+    parse_input(input)
+        .into_iter()
+        .map(dampen)
+        .filter(|damp_reports| damp_reports.iter().any(|report| is_safe(report)))
         .count()
 }
 
@@ -55,6 +64,24 @@ fn parse_input(input: &str) -> Vec<Vec<usize>> {
         .collect()
 }
 
+fn dampen(levels: Vec<usize>) -> Vec<Vec<usize>> {
+    (0..levels.len())
+        .map(|idx| {
+            levels
+                .iter()
+                .enumerate()
+                .filter_map(|(i, level)| {
+                    if i == idx {
+                        return None;
+                    } else {
+                        return Some(*level);
+                    }
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -70,6 +97,14 @@ mod tests {
     fn part_1() {
         let expected = 2;
         let actual = num_safe_reports(INPUT);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn part_2() {
+        let expected = 4;
+        let actual = num_safe_reports_dampened(INPUT);
 
         assert_eq!(expected, actual);
     }
