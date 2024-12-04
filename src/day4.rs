@@ -1,6 +1,7 @@
 pub fn main() {
     const INPUT: &str = include_str!("../inputs/4");
     println!("day 4 part 1: {}", word_search_total(INPUT, "XMAS"));
+    println!("day 4 part 2: {}", crossed_mas_total(INPUT));
 }
 
 struct Grid {
@@ -71,6 +72,34 @@ impl Grid {
         ]
     }
 
+    fn crossed_words(&self, idx: usize) -> [String; 2] {
+        let pos = self.position(idx);
+        let row = pos.row as isize;
+        let column = pos.column as isize;
+
+        // angled from top left to bottom right
+        let top_left_bottom_right: String = ((row - 1)..=(row + 1))
+            .zip((column - 1)..=(column + 1))
+            .filter_map(|(row, column)| {
+                let row = row.try_into().ok()?;
+                let column = column.try_into().ok()?;
+                self.get_xy(column, row)
+            })
+            .collect();
+
+        // angled from top right to bottom left
+        let top_right_bottom_left: String = ((row - 1)..=(row + 1))
+            .zip(((column - 1)..=(column + 1)).rev())
+            .filter_map(|(row, column)| {
+                let row = row.try_into().ok()?;
+                let column = column.try_into().ok()?;
+                self.get_xy(column, row)
+            })
+            .collect();
+
+        [top_left_bottom_right, top_right_bottom_left]
+    }
+
     fn position(&self, idx: usize) -> Position {
         let row = idx / self.width;
         let column = idx - (row * self.width);
@@ -107,9 +136,22 @@ fn word_search_total(input: &str, needle: &str) -> usize {
         .sum()
 }
 
+fn crossed_mas_total(input: &str) -> usize {
+    let grid = Grid::from_input(input);
+
+    (0..grid.letters.len())
+        .filter(|idx| {
+            grid.crossed_words(*idx)
+                .into_iter()
+                .all(|word| word == "MAS" || word == "SAM")
+        })
+        .count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use test_case::test_case;
 
     const INPUT: &str = r#"MMMSXXMASM
 MSAMXMSMSA
@@ -209,5 +251,26 @@ MXMXAXMASX"#;
         let actual = &grid.surrounding_words(99, expected.len())[7];
 
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn part_2() {
+        let expected = 9;
+        let actual = crossed_mas_total(INPUT);
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test_case(11, ["MSX", "MSA"])]
+    #[test_case(0, ["MS", "M"])]
+    #[test_case(99, ["MX", "X"])]
+    #[test_case(44, ["MAX", "SAM"])]
+    fn crossed_words(idx: usize, expected: [&str; 2]) {
+        let grid = Grid::from_input(INPUT);
+        let actual = grid.crossed_words(idx);
+        assert_eq!(
+            expected, actual,
+            "expected: {expected:?}, actual: {actual:?}"
+        );
     }
 }
