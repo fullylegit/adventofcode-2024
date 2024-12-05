@@ -1,6 +1,10 @@
 pub fn main() {
     const INPUT: &str = include_str!("../inputs/5");
     println!("day 5 part 1: {}", correct_order_middle_page_total(INPUT));
+    println!(
+        "day 5 part 2: {}",
+        incorrect_order_fixed_middle_page_total(INPUT)
+    );
 }
 
 struct Update {
@@ -23,16 +27,38 @@ impl Update {
         before_page_idx < after_page_idx
     }
 
-    fn index_of_page(&self, idx: usize) -> Option<usize> {
+    fn index_of_page(&self, page_num: usize) -> Option<usize> {
         self.pages
             .iter()
             .enumerate()
-            .find(|(_idx, page)| **page == idx)
+            .find(|(_idx, page)| **page == page_num)
             .map(|(idx, _page)| idx)
     }
 
     fn middle_page(&self) -> usize {
         self.pages[self.pages.len() / 2]
+    }
+
+    fn fix(mut self, rules: &[Rule]) -> Self {
+        // this is lazy, but you know what? it works.
+        while rules.iter().any(|rule| !self.satisfies_rule(rule)) {
+            for idx in 0..self.pages.len() {
+                let page = self.pages[idx];
+
+                for rule in rules {
+                    if rule.after == page {
+                        for after_idx in idx..self.pages.len() {
+                            let page = self.pages[after_idx];
+                            if rule.before == page {
+                                self.pages.swap(idx, after_idx);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        self
     }
 }
 
@@ -56,6 +82,17 @@ fn correct_order_middle_page_total(input: &str) -> usize {
                 None
             }
         })
+        .sum()
+}
+
+fn incorrect_order_fixed_middle_page_total(input: &str) -> usize {
+    let (rules, updates) = parse_input(input);
+
+    updates
+        .into_iter()
+        .filter(|update| rules.iter().any(|rule| !update.satisfies_rule(rule)))
+        .map(|update| update.fix(&rules))
+        .map(|update| update.middle_page())
         .sum()
 }
 
@@ -127,6 +164,13 @@ mod tests {
     fn part_1() {
         let expected = 143;
         let actual = correct_order_middle_page_total(INPUT);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn part_2() {
+        let expected = 123;
+        let actual = incorrect_order_fixed_middle_page_total(INPUT);
         assert_eq!(expected, actual);
     }
 }
