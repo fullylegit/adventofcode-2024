@@ -1,4 +1,8 @@
-use std::collections::HashSet;
+use rayon::prelude::*;
+use std::{
+    collections::HashSet,
+    sync::atomic::{AtomicUsize, Ordering},
+};
 
 pub fn main() {
     const INPUT: &str = include_str!("../inputs/6");
@@ -6,14 +10,20 @@ pub fn main() {
         "day 6 part 1: {}",
         Map::from_input(INPUT).num_guard_visited_positions()
     );
+    println!(
+        "day 6 part 2: {}",
+        Map::from_input(INPUT).num_new_obstacles_for_loop()
+    )
 }
 
 // top left is 0,0
 // up = north = y-1
 // right = east = x+1
+#[derive(Debug, Clone)]
 struct Map {
     guard: Guard,
     visited: HashSet<Position>,
+    visited_direction: HashSet<(Position, Heading)>,
     obstructions: HashSet<Position>,
     width: isize,
     height: isize,
@@ -32,6 +42,7 @@ impl Map {
         let mut obstructions = HashSet::new();
         let mut guard = None;
         let mut visited = HashSet::new();
+        let mut visited_direction = HashSet::new();
 
         for (y, line) in lines.enumerate() {
             for (x, c) in line.char_indices() {
@@ -44,6 +55,7 @@ impl Map {
                 } else if c == GUARD {
                     guard = Some(Guard::new(pos.clone(), Heading::North));
                     visited.insert(pos);
+                    visited_direction.insert((pos, Heading::North));
                 }
             }
         }
@@ -54,11 +66,58 @@ impl Map {
             height,
             obstructions,
             visited,
+            visited_direction,
         }
     }
 
     fn num_guard_visited_positions(mut self) -> usize {
         self.move_guard_until_off_map().visited.len()
+    }
+
+    // brute force :(
+    fn num_new_obstacles_for_loop(self) -> usize {
+        let success = AtomicUsize::new(0);
+
+        let max_moves = self.height * self.width;
+        (0..self.height).par_bridge().for_each(|y| {
+            (0..self.width).par_bridge().for_each(|x| {
+                let pos = Position { x, y };
+                if self.is_obstruction(&pos) || self.guard.position == pos {
+                    return;
+                }
+
+                let mut temp_map = self.clone();
+
+                temp_map.obstructions.insert(pos.clone());
+
+                for _step in 0..max_moves {
+                    let next_pos = temp_map.guard.next_pos();
+
+                    // are we in a loop?
+                    if temp_map
+                        .visited_direction
+                        .contains(&(next_pos.clone(), temp_map.guard.heading))
+                    {
+                        success.fetch_add(1, Ordering::SeqCst);
+                        break;
+                    }
+
+                    if temp_map.is_obstruction(&next_pos) {
+                        temp_map.guard.turn_right();
+                        continue;
+                    }
+                    if temp_map.is_off_map(&next_pos) {
+                        break;
+                    }
+                    temp_map.guard.move_to(&next_pos);
+                    temp_map
+                        .visited_direction
+                        .insert((next_pos, temp_map.guard.heading));
+                }
+            })
+        });
+
+        success.load(Ordering::Relaxed)
     }
 
     fn move_guard_until_off_map(&mut self) -> &mut Self {
@@ -87,7 +146,7 @@ impl Map {
     }
 }
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone, Copy)]
 struct Guard {
     position: Position,
     heading: Heading,
@@ -134,7 +193,7 @@ struct Position {
     y: isize,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default, PartialEq, Eq, Hash, Clone, Copy)]
 enum Heading {
     #[default]
     North,
@@ -175,6 +234,13 @@ mod tests {
     fn part_1() {
         let expected = 41;
         let actual = Map::from_input(INPUT).num_guard_visited_positions();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn part_2() {
+        let expected = 6;
+        let actual = Map::from_input(INPUT).num_new_obstacles_for_loop();
         assert_eq!(expected, actual);
     }
 }
