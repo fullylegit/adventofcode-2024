@@ -3,7 +3,14 @@ use rayon::prelude::*;
 
 pub fn main() {
     const INPUT: &str = include_str!("../inputs/7");
-    println!("day 7 part 1: {}", total_calibration_result(INPUT));
+    println!(
+        "day 7 part 1: {}",
+        total_calibration_result(INPUT, OPS_PART_1)
+    );
+    println!(
+        "day 7 part 2: {}",
+        total_calibration_result(INPUT, OPS_PART_2)
+    );
 }
 
 struct Equation {
@@ -15,25 +22,28 @@ struct Equation {
 enum Operand {
     Add,
     Multiply,
+    Concatenate,
 }
+
+const OPS_PART_1: [Operand; 2] = [Operand::Add, Operand::Multiply];
+const OPS_PART_2: [Operand; 3] = [Operand::Add, Operand::Multiply, Operand::Concatenate];
 
 impl Operand {
     fn apply(&self, a: usize, b: usize) -> usize {
         match self {
             Operand::Add => a + b,
             Operand::Multiply => a * b,
+            Operand::Concatenate => format!("{a}{b}").parse().unwrap_or_default(),
         }
     }
 }
 
 impl Equation {
-    fn has_solution(&self) -> bool {
-        const OPS: [Operand; 2] = [Operand::Add, Operand::Multiply];
-
+    fn has_solution<const N: usize>(&self, ops: [Operand; N]) -> bool {
         let num_operands = self.nums.len() - 1;
-        OPS.iter()
+        ops.iter()
             .cycle()
-            .take(OPS.len() * num_operands)
+            .take(N * num_operands)
             .copied()
             .combinations(num_operands)
             .unique()
@@ -62,7 +72,7 @@ impl Equation {
     }
 }
 
-fn total_calibration_result(input: &str) -> usize {
+fn total_calibration_result<const N: usize>(input: &str, ops: [Operand; N]) -> usize {
     input
         .par_lines()
         .map(|line| line.trim())
@@ -74,7 +84,7 @@ fn total_calibration_result(input: &str) -> usize {
 
             Some(Equation { nums, result })
         })
-        .filter(|eq| eq.has_solution())
+        .filter(|eq| eq.has_solution(ops))
         .map(|eq| eq.result)
         .sum()
 }
@@ -97,7 +107,14 @@ mod tests {
     #[test]
     fn part_1() {
         let expected = 3749;
-        let actual = total_calibration_result(INPUT);
+        let actual = total_calibration_result(INPUT, OPS_PART_1);
         assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn part_2() {
+        let expected = 11387;
+        let actual = total_calibration_result(INPUT, OPS_PART_2);
+        assert_eq!(expected, actual)
     }
 }
